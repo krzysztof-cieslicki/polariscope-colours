@@ -61,15 +61,15 @@ class Spectrum:
         if ax is None:
             fig, ax = plt.subplots(layout='tight', figsize=(8,6))
 
-        y_max = min(self.__spec)
+        y_max = None
         for n in range(len(self.__lambda)):
             arg = self.__lambda[n]
-            if arg >= xlim[0]:
-                if arg <= xlim[1]:
-                    val = self.__spec[n]
-                    if val > y_max:
-                        y_max = val
-        y_max = np.round(y_max*10, 0)/10
+            if arg < xlim[0]: continue
+            elif arg > xlim[1]: continue
+            val = self.__spec[n]
+            if y_max is None or val > y_max:
+                y_max = val
+
         ax.plot(self.__lambda, self.__spec, color='r', linewidth=1)
         ax.set_xlabel('Wavelength [nm]', fontsize=16)
         ax.set_ylabel('Intensity [a.u.]', fontsize=16)
@@ -117,7 +117,7 @@ class Spectrum:
         x, y, Y = self.get_xycolor()
         xyY = xyYColor(x, y, Y, illuminant=self.__illuminant)
         RGB_converted = convert_color(xyY, sRGBColor, target_illuminant=self.__illuminant)
-        return tuple([val*1.41 for val in RGB_converted.get_value_tuple()])
+        return tuple([val*1.2 for val in RGB_converted.get_value_tuple()])
 
     def updated_spec(self, transmission):
         return self.__spec * transmission
