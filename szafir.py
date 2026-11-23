@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-thickness = 50 # [um]
+thickness = 38 # [um]
 fig, ax = plt.subplots(layout='tight', figsize=(7.5,5))
 fig2, ax2 = plt.subplots(layout='tight', figsize=(4,4))
 
@@ -12,7 +12,6 @@ sapphire = Crystal(n1=lambda x: (1+1.4313493/(1-(0.0726631/x)**2)+0.65054713/(1-
                    d=thickness * 1e3)
 
 light = Spectrum(illuminant='D65', filename="illuminant files/CIE_std_illum_D65.csv", headerlines=0, delimiter=',', normalize=True)
-
 wavelength = light.get_lambda()
 
 transmission = np.sin(np.pi * sapphire.get_opd(wavelength*1e-3) / wavelength) ** 2

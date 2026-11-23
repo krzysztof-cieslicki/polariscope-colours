@@ -109,7 +109,7 @@ class Spectrum:
         else:
 
             # x,y,z coordinates in the CIE1931 colour space
-            # x+y+z = 1 (so the z coordinate remains unused)
+            # x+y+z = 1 (so the z coordinate is redundant)
             x = X / (X+Y+Z)
             y = Y / (X+Y+Z)
             z = Z / (X+Y+Z)
@@ -119,9 +119,7 @@ class Spectrum:
         x, y, Y = self.get_xycolor()
         xyY = xyYColor(x, y, Y, illuminant=self.__illuminant)
         RGB_converted = convert_color(xyY, sRGBColor, target_illuminant=self.__illuminant)
-        r,g,b = RGB_converted.get_value_tuple()
-        #RGB = sRGBColor(r,g,b, is_upscaled=False)
-        return (r,g,b) #RGB.get_value_tuple()
+        return tuple([val*1.41 for val in RGB_converted.get_value_tuple()])
 
     def updated_spec(self, transmission):
         return self.__spec * transmission
@@ -197,8 +195,6 @@ def draw_srgb(ax=None):
     ax.plot([0.64, 0.30, 0.15, 0.64], [0.33, 0.60, 0.06, 0.33], linewidth=0.5, color='k')
 
 def color_curve(light, opd_min=None, opd_max=None, opd_points=None, *, crossed=True, axs=None):
-
-
     ax1, ax2 = axs
     if opd_min is None: opd_min = 0
     if opd_max is None: opd_max = 1500
@@ -211,34 +207,29 @@ def color_curve(light, opd_min=None, opd_max=None, opd_points=None, *, crossed=T
     opd_list = np.linspace(opd_min, opd_max, opd_points)
     x_plot = []
     y_plot = []
-    rgb = []
     polaryskop = Polariscope(crossed)
+    dx = (opd_max - opd_min)/opd_points
     for opd in opd_list:
         new_spectrum = light.get_spec() * polaryskop.get_transmission(x, opd)
         exiting = Spectrum(x=x, spectrum=new_spectrum, illuminant=light.get_illum())
+        ax2.fill_between((opd, opd + dx), opd_max * 0.1, color=exiting.get_rgb())
+
         xy_new = exiting.get_xycolor()
         x_plot.append(xy_new[0])
         y_plot.append(xy_new[1])
-        r, g, b = exiting.get_rgb()
-        rgb.append((r, g, b))
-
-    rgb = np.array(rgb)
 
     draw_outline(ax1)
     draw_srgb(ax1)
-    ax1.plot(x_plot, y_plot, color='r', linewidth=1)
-
-    dx = (opd_max - opd_min)/opd_points
-    for n in range(opd_points):
-        opd = opd_list[n]
-        ax2.fill_between((opd, opd + dx), opd_max * 0.1, color=rgb[n])
-
+    ax1.scatter(x_plot[0], y_plot[0], 12, marker='*', color="C3", zorder=30)
+    ax1.plot(x_plot, y_plot, color='C3', linewidth=1)
     ax2.set_aspect('equal')
     ax2.set_xlabel(r'$\Delta L\:[\rm nm]$', fontsize=16)
     ax2.get_yaxis().set_visible(False)
     ax2.set_xlim([0, opd_max])
     ax2.set_ylim([0, opd_max*0.1])
     ax2.tick_params(labelsize=16)
+
+    return {"curve": {"x": x_plot, "y": y_plot}, "opd": opd_list}
 
 
 def main():
@@ -250,11 +241,12 @@ def main():
                         "C": "CIE_illum_C",
                         "D65": "CIE_std_illum_D65"}
 
-    illuminant = "D65"
-    incident = Spectrum(filename=f"./illuminant files/{illuminant_files[illuminant]}.csv", illuminant=illuminant,
-                        normalize=True, headerlines=1, delimiter=",")
+    illuminant = "C"
+    incident = Spectrum(filename=f"./illuminant files/{illuminant_files[illuminant]}.csv",
+                        illuminant=illuminant, normalize=True,
+                        headerlines=1, delimiter=",")
 
-    color_curve(opd_min=0, opd_max=800, opd_points=1000, crossed=True, light=incident, axs=(ax1, ax2))
+    color_curve(opd_min=0, opd_max=1500, opd_points=1000, crossed=True, light=incident, axs=(ax1, ax2))
     plt.show()
 
 if __name__ == "__main__":
