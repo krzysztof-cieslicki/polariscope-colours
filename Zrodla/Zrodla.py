@@ -18,10 +18,7 @@ def main():
 
     LED = Spectrum(x=x, spectrum=y, illuminant='d65')
     LED.plot_functions()
-    light_color = np.array(LED.get_rgb())
-    light_color = light_color/max(light_color)
-    fig, ax = plt.subplots(layout='tight')
-    ax.fill_between([0, 1], 1, facecolor=light_color)
+    ax.fill_between([0, 1], 1, facecolor=LED.get_rgb())
     LED.plot_spectrum()
     plt.show()
 
