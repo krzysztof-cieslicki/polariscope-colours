@@ -28,15 +28,15 @@ class Spectrum:
         self.__spec = np.array(spectrum)
         self.__illuminant = illuminant
 
-        # Normalizing the area under the spectral intensity (for xyY to rgb conversion)
-        # use only with the input spectrum (normalizing the area for transmitted spectrum would cause luminance inaccuracy)
+        # Normalising the area under the spectral intensity (for xyY to rgb conversion)
+        # use only with the input spectrum (normalising the area for transmitted spectrum would cause luminance inaccuracy)
         if normalize is True:
             area = np.trapezoid(self.__spec, x=self.__lambda)
             target_area = 1
             scale = target_area/area
             self.__spec *= scale
 
-        # Color matching functions
+        # Colour matching functions
         self.__x_bar = self.__g(x,(1.056, 599.8, 0.0264, 0.0323), (0.362, 442, 0.0624, 0.0374),
                                 (-0.065, 501.1, 0.0490, 0.0382))
         self.__y_bar = self.__g(x, (0.821, 568.8, 0.0231, 0.0247), (0.286, 530.9, 0.0613, 0.0322))
@@ -91,11 +91,10 @@ class Spectrum:
         ax.plot(self.__lambda, self.__y_bar, color='g')
         ax.plot(self.__lambda, self.__z_bar, color='b')
         ax.set_xlabel(r'$\lambda\:[\rm nm]$')
-        ax.legend([r'$\overline{x}(\lambda)$', r'$\overline{y}(\lambda)$', r'$\overline{z}(\lambda)$'], fancybox=False,
-                   fontsize=13)
+        ax.legend([r'$\overline{x}(\lambda)$', r'$\overline{y}(\lambda)$', r'$\overline{z}(\lambda)$'],
+                  fancybox=False, fontsize=13)
         ax.set_xlim([380, 780])
         ax.set_ylim([0, 2])
-        print(f'x:{np.trapezoid(self.__x_bar, x=self.__lambda)}\ny:{np.trapezoid(self.__y_bar, x=self.__lambda)}\nz:{np.trapezoid(self.__z_bar, x=self.__lambda)}')
         return ax
 
     def get_xycolor(self):
@@ -107,12 +106,11 @@ class Spectrum:
 
         if X+Y+Z < 1e-12: x, y, z = (0,0,0)
         else:
-
             # x,y,z coordinates in the CIE1931 colour space
             # x+y+z = 1 (so the z coordinate is redundant)
             x = X / (X+Y+Z)
             y = Y / (X+Y+Z)
-            z = Z / (X+Y+Z)
+
         return x, y, Y
 
     def get_rgb(self):
