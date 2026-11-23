@@ -5,49 +5,54 @@ from colormath.color_objects import sRGBColor, xyYColor
 
 class Spectrum:
 
-    def __init__(self, filename=None, x=None, spectrum=None, illuminant='c', headerlines=None, delimiter="\t"):
+    def __init__(self, filename=None, x=None, spectrum=None, illuminant=None,
+                 normalize=None, headerlines=None, delimiter=None):
+
+        if headerlines is None: headerlines = 0
+        if delimiter is None: delimiter = "\t"
+        if normalize is None: normalize = False
+        if illuminant is None: illuminant = "C"
+
         if filename is not None:
             x = []
             spectrum = []
-            peak = 0
             with open(filename, 'r') as file:
                 for n in range(headerlines): file.readline()
                 for line in file:
-                    line = line.split(delimiter)
-                    line = [float(line[n].strip(' \n')) for n in range(len(line))]
-                    if line[1] > peak: peak = line[1]
+                    line = line.rstrip("\n").lstrip(" ").split(delimiter)
+                    line = [float(line[n]) for n in range(len(line))]
                     x.append(line[0])
                     spectrum.append(line[1])
 
-        self.__lambda = x
-        self.__spec = np.array(spectrum)/max(spectrum)*1024
+        self.__lambda = np.array(x)
+        self.__spec = np.array(spectrum)
         self.__illuminant = illuminant
 
+        # Normalizing the area under the spectral intensity (for xyY to rgb conversion)
+        # use only with the input spectrum (normalizing the area for transmitted spectrum would cause luminance inaccuracy)
+        if normalize is True:
+            area = np.trapezoid(self.__spec, x=self.__lambda)
+            target_area = 1
+            scale = target_area/area
+            self.__spec *= scale
+
+        # Color matching functions
         self.__x_bar = self.__g(x,(1.056, 599.8, 0.0264, 0.0323), (0.362, 442, 0.0624, 0.0374),
                                 (-0.065, 501.1, 0.0490, 0.0382))
         self.__y_bar = self.__g(x, (0.821, 568.8, 0.0231, 0.0247), (0.286, 530.9, 0.0613, 0.0322))
         self.__z_bar = self.__g(x, (1.217, 437.0, 0.0845, 0.0278), (0.681, 459.0, 0.0385, 0.0725))
 
-        x_scale = 100/np.trapezoid(self.__x_bar, x=self.__lambda)
-        y_scale = 100/np.trapezoid(self.__y_bar, x=self.__lambda)
-        z_scale = 100/np.trapezoid(self.__z_bar, x=self.__lambda)
 
-        self.__x_bar *= x_scale
-        self.__y_bar *= y_scale
-        self.__z_bar *= z_scale
 
     def __g(self, x, *coeffs):
         val = np.zeros(len(x))
+        gauss = lambda A, mu, t, x: A*np.exp(-(t*(x-mu)) ** 2 / 2)
         for line in coeffs:
             A, mu, t1, t2 = line
             for n in range(len(x)):
                 arg = x[n]
-                if arg < mu:
-                    new_val = np.exp(-(t1 * (arg - mu)) ** 2 / 2)
-                else:
-                    new_val = np.exp(-(t2 * (arg - mu)) ** 2 / 2)
-
-                new_val *= A
+                new_val = gauss(A, mu, t1, arg)
+                if arg > mu: new_val = gauss(A, mu, t2, arg)
                 val[n] += new_val
 
         return val
@@ -95,14 +100,16 @@ class Spectrum:
 
     def get_xycolor(self):
 
+        # XYZ activation functions
         X = np.trapezoid(self.__spec * self.__x_bar, x=self.__lambda)
         Y = np.trapezoid(self.__spec * self.__y_bar, x=self.__lambda)
         Z = np.trapezoid(self.__spec * self.__z_bar, x=self.__lambda)
 
-        #X, Y, Z = X * self.__scale[0], Y * self.__scale[1], Z * self.__scale[2]
-        pass
         if X+Y+Z < 1e-12: x, y, z = (0,0,0)
         else:
+
+            # x,y,z coordinates in the CIE1931 colour space
+            # x+y+z = 1 (so the z coordinate remains unused)
             x = X / (X+Y+Z)
             y = Y / (X+Y+Z)
             z = Z / (X+Y+Z)
@@ -113,8 +120,8 @@ class Spectrum:
         xyY = xyYColor(x, y, Y, illuminant=self.__illuminant)
         RGB_converted = convert_color(xyY, sRGBColor, target_illuminant=self.__illuminant)
         r,g,b = RGB_converted.get_value_tuple()
-        RGB = sRGBColor(r,g,b, is_upscaled=True)
-        return RGB.get_value_tuple()
+        #RGB = sRGBColor(r,g,b, is_upscaled=False)
+        return (r,g,b) #RGB.get_value_tuple()
 
     def updated_spec(self, transmission):
         return self.__spec * transmission
@@ -139,8 +146,7 @@ class Polariscope:
     def get_transmission(self, x, opd=None):
         gamma = np.pi*opd/x
         transmitted = np.sin(gamma) ** 2
-        if self.__crossed is False:
-            transmitted = 1 - transmitted
+        if self.__crossed is False: transmitted = 1 - transmitted
         return np.array(transmitted)
 
 class Crystal:
@@ -151,14 +157,12 @@ class Crystal:
         self.__n2 = n2
         self.__name = name
 
-    def get_biref(self, x=555, nm=True):
-        if nm is True:
-            x = np.multiply(x, 1e-3)
-
+    def get_biref(self, x=None):
+        if x is None: x = 0.555
         return self.__n2(x)-self.__n1(x)
 
-    def get_opd(self, wavelen, nm=True):
-        opd = self.get_biref(x=wavelen, nm=nm) * self.__d / wavelen
+    def get_opd(self, wavelen):
+        opd = self.get_biref(x=wavelen) * self.__d / wavelen
         return opd
 
 def draw_outline(ax=None):
@@ -188,44 +192,47 @@ def draw_outline(ax=None):
     return ax
 
 def draw_srgb(ax=None):
-    if ax is None:
-        fig, ax = plt.subplot()
+    if ax is None: fig, ax = plt.subplot()
 
     ax.plot([0.64, 0.30, 0.15, 0.64], [0.33, 0.60, 0.06, 0.33], linewidth=0.5, color='k')
 
-def color_curve(x, light, opd_min=0, opd_max=2000, opd_points=2000, crossed=True):
-    fig1, ax1 = plt.subplots(figsize=(8, 6), layout='tight')
+def color_curve(light, opd_min=None, opd_max=None, opd_points=None, *, crossed=True, axs=None):
 
-    polaryskop = Polariscope(crossed)
+
+    ax1, ax2 = axs
+    if opd_min is None: opd_min = 0
+    if opd_max is None: opd_max = 1500
+    if opd_points is None: opd_points = 1000
     if crossed is True:
         if opd_min == 0:
             opd_min = 1e-3
 
-    opd = np.linspace(opd_min, opd_max, opd_points)
+    x = light.get_lambda()
+    opd_list = np.linspace(opd_min, opd_max, opd_points)
     x_plot = []
     y_plot = []
     rgb = []
-    peak = 1
-    for n in range(opd_points):
-        new_spectrum = light.get_spec() * polaryskop.get_transmission(x, opd[n])
+    polaryskop = Polariscope(crossed)
+    for opd in opd_list:
+        new_spectrum = light.get_spec() * polaryskop.get_transmission(x, opd)
         exiting = Spectrum(x=x, spectrum=new_spectrum, illuminant=light.get_illum())
         xy_new = exiting.get_xycolor()
         x_plot.append(xy_new[0])
         y_plot.append(xy_new[1])
         r, g, b = exiting.get_rgb()
-        #if max(r,g,b) > peak: peak = max(r,g,b)
         rgb.append((r, g, b))
 
-    rgb = np.array(rgb)/peak
+    rgb = np.array(rgb)
 
     draw_outline(ax1)
     draw_srgb(ax1)
     ax1.plot(x_plot, y_plot, color='r', linewidth=1)
-    dx = opd[1] - opd[0]
 
-    fig2, ax2 = plt.subplots(layout='tight')
+    dx = (opd_max - opd_min)/opd_points
     for n in range(opd_points):
-        ax2.fill_between((opd[n], opd[n] + dx), opd_max * 0.1, color=rgb[n])
+        opd = opd_list[n]
+        ax2.fill_between((opd, opd + dx), opd_max * 0.1, color=rgb[n])
+
     ax2.set_aspect('equal')
     ax2.set_xlabel(r'$\Delta L\:[\rm nm]$', fontsize=16)
     ax2.get_yaxis().set_visible(False)
@@ -235,15 +242,19 @@ def color_curve(x, light, opd_min=0, opd_max=2000, opd_points=2000, crossed=True
 
 
 def main():
+    fig1, ax1 = plt.subplots(layout="tight", figsize=(5,6))
+    fig2, ax2 = plt.subplots(layout="tight", figsize=(9,2))
+    ax1.set_aspect("equal")
+    ax2.set_aspect("equal")
+    illuminant_files = {"A": 'CIE_std_illum_A_1nm',
+                        "C": "CIE_illum_C",
+                        "D65": "CIE_std_illum_D65"}
 
-    illuminant = 'CIE_illum_C.csv'
+    illuminant = "D65"
+    incident = Spectrum(filename=f"./illuminant files/{illuminant_files[illuminant]}.csv", illuminant=illuminant,
+                        normalize=True, headerlines=1, delimiter=",")
 
-    incident = Spectrum(filename=f"./{illuminant}", illuminant='C', headerlines=1, delimiter=",")
-    x = incident.get_lambda()
-    incident.plot_functions()
-    #fig1.savefig('color matching functions', dpi=300)
-
-    color_curve(x=x, opd_min=0, opd_max=2000, opd_points=1000, crossed=True, light=incident)
+    color_curve(opd_min=0, opd_max=800, opd_points=1000, crossed=True, light=incident, axs=(ax1, ax2))
     plt.show()
 
 if __name__ == "__main__":
