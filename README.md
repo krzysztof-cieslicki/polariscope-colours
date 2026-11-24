@@ -8,3 +8,7 @@ One of the main parameters used to describe birefringent media is their birefrin
 
 For propagation along the crystal's axis its birefringence is equal to 0, while for propagation perpendicular to the axis its birefringence reaches the highest (absolute) value.
 
+<!-- 
+# Calculating optical path difference
+Let's assume the crystal is cut into thin flat plate parallel to the axis. 
+<img width="600" height="400" alt="RefractiveIndexINFO" src="https://github.com/user-attachments/assets/16fa6a8e-9cd5-450c-b0ca-e957ad3c17fb"/> -->
