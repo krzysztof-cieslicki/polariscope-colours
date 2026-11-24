@@ -196,8 +196,8 @@ def color_curve(light, opd_min=None, opd_max=None, opd_points=None, *, crossed=T
     '''
     Simulate polariscope colours for a specified range of optical path difference
     :param light: Incident spectrum
-    :param opd_min: Minimal optical path difference [nm]
-    :param opd_max: Maximal optical path difference [nm]
+    :param opd_min: Min optical path difference [nm]
+    :param opd_max: Max optical path difference [nm]
     :param opd_points: Number of opd points
     :param crossed: Polariscope type (crossed or paralell)
     :param axs: Axes for plotting (ax1, ax2)
