@@ -20,7 +20,7 @@ modified = Spectrum(x=wavelength, spectrum=light.updated_spec(transmission))
 
 ax.plot(wavelength, sapphire.get_biref(wavelength*1e-3))
 ax.set_xlabel("Wavelength [nm]", fontweight="bold", fontsize=16)
-ax.set_ylabel(r"$\Delta n$", fontweight="bold", fontsize=16)
+ax.set_ylabel(r"$\bf\Delta n$", fontweight="bold", fontsize=16)
 ax.tick_params(axis="both", labelsize=14)
 ax.ticklabel_format(axis="y", scilimits=(-2, 2))
 

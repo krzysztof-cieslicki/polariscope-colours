@@ -148,17 +148,28 @@ class Polariscope:
 class Crystal:
 
     def __init__(self, d, n1, n2, *, name=None):
-        self.__d = d # ile w mm
+        self.__d = d # um
         self.__n1 = n1
         self.__n2 = n2
         self.__name = name
 
-    def get_biref(self, x=None):
-        if x is None: x = 0.555
-        return self.__n2(x)-self.__n1(x)
+    def get_biref(self, wavelen=None):
+        '''
+        Calculate difference in refractive indices for a specified wavelength/wavelength array
+        :param wavelen: Wavelength in um
+        :return: Calculated birefringence
+        '''
+        if wavelen is None: wavelen = 0.555
+        biref = self.__n2(wavelen)-self.__n1(wavelen)
+        return biref
 
     def get_opd(self, wavelen):
-        opd = self.get_biref(x=wavelen) * self.__d / wavelen
+        '''
+        Calculate optical path difference for a specified wavelength/wavelength array
+        :param wavelen: Wavelength in um
+        :return: Optical path difference expressed in wavelength multiple
+        '''
+        opd = self.get_biref(wavelen) * self.__d / wavelen
         return opd
 
 def draw_outline(ax=None):
