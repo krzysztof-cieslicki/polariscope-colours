@@ -193,6 +193,17 @@ def draw_srgb(ax=None):
     ax.plot([0.64, 0.30, 0.15, 0.64], [0.33, 0.60, 0.06, 0.33], linewidth=0.5, color='k')
 
 def color_curve(light, opd_min=None, opd_max=None, opd_points=None, *, crossed=True, axs=None):
+    '''
+    Simulate polariscope colours for a specified range of optical path difference
+    :param light: Incident spectrum
+    :param opd_min: Minimal optical path difference [nm]
+    :param opd_max: Maximal optical path difference [nm]
+    :param opd_points: Number of opd points
+    :param crossed: Polariscope type (crossed or paralell)
+    :param axs: Axes for plotting (ax1, ax2)
+    :return:
+    '''
+
     ax1, ax2 = axs
     if opd_min is None: opd_min = 0
     if opd_max is None: opd_max = 1500
