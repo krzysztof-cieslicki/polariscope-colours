@@ -25,13 +25,14 @@ class Spectrum:
                     spectrum.append(line[1])
 
         self.__lambda = np.array(x)
+        self.__dlambda = (x[-1]-x[0]) / len(x)
         self.__spec = np.array(spectrum)
         self.__illuminant = illuminant
 
         # Normalising the area under the spectral intensity (for xyY to rgb conversion)
         # use only with the input spectrum (normalising the area for transmitted spectrum would cause luminance inaccuracy)
         if normalize is True:
-            area = np.trapezoid(self.__spec, x=self.__lambda)
+            area = np.trapezoid(self.__spec, dx=self.__dlambda)
             target_area = 1
             scale = target_area/area
             self.__spec *= scale
@@ -41,6 +42,8 @@ class Spectrum:
                                 (-0.065, 501.1, 0.0490, 0.0382))
         self.__y_bar = self.__g(x, (0.821, 568.8, 0.0231, 0.0247), (0.286, 530.9, 0.0613, 0.0322))
         self.__z_bar = self.__g(x, (1.217, 437.0, 0.0845, 0.0278), (0.681, 459.0, 0.0385, 0.0725))
+
+        self.__ref_luminance = np.trapezoid(self.__spec * self.__y_bar, dx=self.__dlambda)
 
 
 
@@ -97,12 +100,14 @@ class Spectrum:
         ax.set_ylim([0, 2])
         return ax
 
-    def get_xycolor(self):
+    def get_xycolor(self, spec=None):
+
+        if spec is None: spec = self.__spec
 
         # XYZ activation functions
-        X = np.trapezoid(self.__spec * self.__x_bar, x=self.__lambda)
-        Y = np.trapezoid(self.__spec * self.__y_bar, x=self.__lambda)
-        Z = np.trapezoid(self.__spec * self.__z_bar, x=self.__lambda)
+        X = np.trapezoid(spec * self.__x_bar, dx=self.__dlambda)
+        Y = np.trapezoid(spec * self.__y_bar, dx=self.__dlambda)
+        Z = np.trapezoid(spec * self.__z_bar, dx=self.__dlambda)
 
         if X+Y+Z < 1e-12: x, y, z = (0,0,0)
         else:
@@ -111,16 +116,21 @@ class Spectrum:
             x = X / (X+Y+Z)
             y = Y / (X+Y+Z)
 
-        return x, y, Y
+        return x, y, Y/self.__ref_luminance
 
-    def get_rgb(self):
-        x, y, Y = self.get_xycolor()
+    def get_rgb(self, spec=None):
+
+        if spec is None: spec = self.__spec
+
+        x, y, Y = self.get_xycolor(spec)
         xyY = xyYColor(x, y, Y, illuminant=self.__illuminant)
         RGB_converted = convert_color(xyY, sRGBColor, target_illuminant=self.__illuminant)
-        return tuple([val*1.2 for val in RGB_converted.get_value_tuple()])
+        rgb = RGB_converted.get_value_tuple()
+        rgb = [val if val < 1 else 1 for val in rgb] # not sure if this is entirely legal
+        return rgb, xyY.get_value_tuple()
 
-    def updated_spec(self, transmission):
-        return self.__spec * transmission
+    def modified_spec_rgb(self, transmission):
+        return self.get_rgb(self.__spec*transmission)
 
     def get_functions(self):
         return self.__x_bar, self.__y_bar, self.__z_bar
@@ -142,7 +152,7 @@ class Polariscope:
     def get_transmission(self, x, opd=None):
         gamma = np.pi*opd/x
         transmitted = np.sin(gamma) ** 2
-        if self.__crossed is False: transmitted = 1 - transmitted
+        if not self.__crossed: transmitted = 1 - transmitted
         return np.array(transmitted)
 
 class Crystal:
@@ -160,7 +170,7 @@ class Crystal:
         :return: Calculated birefringence
         '''
         if wavelen is None: wavelen = 0.555
-        biref = self.__n2(wavelen)-self.__n1(wavelen)
+        biref = self.__n1(wavelen)-self.__n2(wavelen)
         return biref
 
     def get_opd(self, wavelen):
@@ -230,11 +240,10 @@ def color_curve(light, opd_min=None, opd_max=None, opd_points=None, *, crossed=T
     polaryskop = Polariscope(crossed)
     dx = (opd_max - opd_min)/opd_points
     for opd in opd_list:
-        new_spectrum = light.get_spec() * polaryskop.get_transmission(x, opd)
-        exiting = Spectrum(x=x, spectrum=new_spectrum, illuminant=light.get_illum())
-        ax2.fill_between((opd, opd + dx), opd_max * 0.1, color=exiting.get_rgb())
+        rgb, xyY = light.modified_spec_rgb(polaryskop.get_transmission(x, opd))
+        ax2.fill_between((opd, opd + dx), opd_max * 0.1, color=rgb)
 
-        xy_new = exiting.get_xycolor()
+        xy_new = xyY
         x_plot.append(xy_new[0])
         y_plot.append(xy_new[1])
 
@@ -266,7 +275,7 @@ def main():
                         illuminant=illuminant, normalize=True,
                         headerlines=1, delimiter=",")
 
-    color_curve(opd_min=0, opd_max=1500, opd_points=1000, crossed=True, light=incident, axs=(ax1, ax2))
+    color_curve(opd_min=0, opd_max=1500, opd_points=1000, crossed=False, light=incident, axs=(ax1, ax2))
     plt.show()
 
 if __name__ == "__main__":
